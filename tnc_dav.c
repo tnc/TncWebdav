@@ -1,3 +1,19 @@
+/*
+	Copyright 2012 The NetCircle <joseph@thenetcircle.com>
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 #include <php.h>
 #include "php_ini.h"
 #include "ext/standard/info.h"
@@ -9,6 +25,8 @@
 #include <ne_207.h>
 #include <zend_exceptions.h>
 #include <string.h>
+#include <stdlib.h>
+#include <time.h>
 
 #include "php_tnc_dav.h"
 
@@ -16,8 +34,6 @@ zend_class_entry *tnc_dav_ce;
 zend_class_entry *tnc_dav_exception_ce;
 
 zend_object_handlers tnc_dav_default_handlers;
-
-/* TODO: define some constants for error codes */
 
 /* TODO: need static keyword? */
 static function_entry tnc_dav_methods[] = {
@@ -31,6 +47,9 @@ static function_entry tnc_dav_methods[] = {
 	PHP_ME(TncWebdav, copy, NULL, ZEND_ACC_PUBLIC)
 	PHP_ME(TncWebdav, move, NULL, ZEND_ACC_PUBLIC)
 	PHP_ME(TncWebdav, mkcol, NULL, ZEND_ACC_PUBLIC)
+	PHP_ME(TncWebdav, propfind, NULL, ZEND_ACC_PUBLIC)
+	PHP_ME(TncWebdav, options, NULL, ZEND_ACC_PUBLIC)
+	PHP_ME(TncWebdav, getModTime, NULL, ZEND_ACC_PUBLIC)
 	{NULL, NULL, NULL}
 };
 
@@ -71,6 +90,38 @@ PHP_MINIT_FUNCTION(tnc_dav)
 	memcpy(&tnc_dav_default_handlers, zend_get_std_object_handlers(), sizeof(zend_object_handlers));
 	tnc_dav_default_handlers.clone_obj = NULL;
 	
+	zend_declare_class_constant_long(tnc_dav_ce, "CAP_DAV_CLASS1", strlen("CAP_DAV_CLASS1"), 0 TSRMLS_CC);
+	zend_declare_class_constant_long(tnc_dav_ce, "CAP_DAV_CLASS2", strlen("CAP_DAV_CLASS2"), 1 TSRMLS_CC);
+	zend_declare_class_constant_long(tnc_dav_ce, "CAP_DAV_CLASS3", strlen("CAP_DAV_CLASS3"), 2 TSRMLS_CC);
+	zend_declare_class_constant_long(tnc_dav_ce, "CAP_MODDAV_EXEC", strlen("CAP_MODDAV_EXEC"), 3 TSRMLS_CC);
+	zend_declare_class_constant_long(tnc_dav_ce, "CAP_DAV_ACL", strlen("CAP_DAV_ACL"), 4 TSRMLS_CC);
+	zend_declare_class_constant_long(tnc_dav_ce, "CAP_VER_CONTROL", strlen("CAP_VER_CONTROL"), 5 TSRMLS_CC);
+	zend_declare_class_constant_long(tnc_dav_ce, "CAP_CO_IN_PLACE", strlen("CAP_CO_IN_PLACE"), 6 TSRMLS_CC);
+	zend_declare_class_constant_long(tnc_dav_ce, "CAP_VER_HISTORY", strlen("CAP_VER_HISTORY"), 7 TSRMLS_CC);
+	zend_declare_class_constant_long(tnc_dav_ce, "CAP_WORKSPACE", strlen("CAP_WORKSPACE"), 8 TSRMLS_CC);
+	zend_declare_class_constant_long(tnc_dav_ce, "CAP_UPDATE", strlen("CAP_UPDATE"), 9 TSRMLS_CC);
+	zend_declare_class_constant_long(tnc_dav_ce, "CAP_LABEL", strlen("CAP_LABEL"), 10 TSRMLS_CC);
+	zend_declare_class_constant_long(tnc_dav_ce, "CAP_WORK_RESOURCE", strlen("CAP_WORK_RESOURCE"), 11 TSRMLS_CC);
+	zend_declare_class_constant_long(tnc_dav_ce, "CAP_MERGE", strlen("CAP_MERGE"), 12 TSRMLS_CC);
+	zend_declare_class_constant_long(tnc_dav_ce, "CAP_BASELINE", strlen("CAP_BASELINE"), 13 TSRMLS_CC);
+	zend_declare_class_constant_long(tnc_dav_ce, "CAP_ACTIVITY", strlen("CAP_ACTIVITY"), 14 TSRMLS_CC);
+	zend_declare_class_constant_long(tnc_dav_ce, "CAP_VC_COLLECTION", strlen("CAP_VC_COLLECTION"), 15 TSRMLS_CC);
+	
+	/* status codes - should we map these to some specific constants?
+		200 OK
+		201 Created
+		204 No Content
+		403 Forbidden
+		405 Method Not Allowed
+		409 Conflict
+		412 Precondition Failed
+		423 Locked
+		415 Unsupported Media Type
+		500 Internal Server Error
+		502 Bad Gateway
+		507 Insufficient Storage
+	*/
+	
 	return SUCCESS;
 }
 
@@ -105,6 +156,18 @@ void php_tnc_dav_t_free(void *object TSRMLS_DC)
 	if(obj->url)
 	{
 		efree(obj->url);
+	}
+	if(obj->user)
+	{
+		efree(obj->user);
+	}
+	if(obj->pass)
+	{
+		efree(obj->pass);
+	}
+	if(obj->sess)
+	{
+		ne_session_destroy(obj->sess);
 	}
 	efree(obj);
 }
@@ -159,6 +222,7 @@ static int cb_dav_reader(void *userdata, const char *buf, size_t len) {
     if (full_len < old_len || full_len < len) {
         return -1;
     }
+
     Z_STRVAL_P(return_value) = erealloc(Z_STRVAL_P(return_value), full_len);
     Z_STRLEN_P(return_value) = full_len;
     memcpy(Z_STRVAL_P(return_value) + old_len, buf, len);
@@ -275,6 +339,8 @@ PHP_METHOD(TncWebdav, get)
 	int uri_len;
 	int ret;
 	
+	char *tmp_return;
+	
 	ne_request *req;
 	tnc_dav_t *object;
 	
@@ -286,19 +352,33 @@ PHP_METHOD(TncWebdav, get)
 	
 	GET_DAV(getThis());
 	// full uri? look at get_full_uri
-	full_uri = make_full_uri(object, uri, uri_len);
+	//full_uri = make_full_uri(object, uri, uri_len);
 	req = ne_request_create(object->sess, "GET", uri);
 	RETVAL_EMPTY_STRING();
 	ne_add_response_body_reader(req, ne_accept_2xx, cb_dav_reader, return_value);
 	ret = ne_request_dispatch(req);
 	ne_request_destroy(req);
 	
+	int old_len = Z_STRLEN_P(return_value);
+	tmp_return = (char *)emalloc(old_len + 1);
+	memcpy(tmp_return, Z_STRVAL_P(return_value), old_len);
+	tmp_return[old_len] = '\0';
+	
+	Z_STRVAL_P(return_value) = erealloc(Z_STRVAL_P(return_value), old_len + 1);
+	memcpy(Z_STRVAL_P(return_value), tmp_return, old_len + 1);
+	
+ 	efree(tmp_return);
+	
 	if(NE_OK != ret || 2 != ne_get_status(req)->klass)
 	{
 		char *err_msg;
 		err_msg = get_error_msg(object->sess);
-		zend_throw_exception(tnc_dav_exception_ce, err_msg, 0 TSRMLS_CC);
+		// get error code
+		char *code = (char *)emalloc(3);
+		memcpy(code, err_msg, 3);
+		zend_throw_exception(tnc_dav_exception_ce, err_msg, atoi(code) TSRMLS_CC);
 		efree(err_msg);
+		efree(code);
 	}
 	
 }
@@ -320,7 +400,7 @@ PHP_METHOD(TncWebdav, put)
 	
 	GET_DAV(getThis());
 	
-	full_uri = make_full_uri(object, uri, uri_len);
+	//full_uri = make_full_uri(object, uri, uri_len);
 	req = ne_request_create(object->sess, "PUT", uri);
 	ne_set_request_body_buffer(req, data, data_len);
 	ret = ne_request_dispatch(req);
@@ -330,8 +410,12 @@ PHP_METHOD(TncWebdav, put)
 	{
 		char *err_msg;
 		err_msg = get_error_msg(object->sess);
-		zend_throw_exception(tnc_dav_exception_ce, err_msg, 0 TSRMLS_CC);
+		// get error code
+		char *code = (char *)emalloc(3);
+		memcpy(code, err_msg, 3);
+		zend_throw_exception(tnc_dav_exception_ce, err_msg, atoi(code) TSRMLS_CC);
 		efree(err_msg);
+		efree(code);
 	}
 	
 	RETURN_TRUE;
@@ -354,25 +438,27 @@ PHP_METHOD(TncWebdav, delete)
 	
 	GET_DAV(getThis());
 	
-	full_uri = make_full_uri(object, uri, uri_len);
-	req = ne_request_create(object->sess, "DELETE", uri);
-	ret = ne_simple_request(object->sess, req);
+	//full_uri = make_full_uri(object, uri, uri_len);
+	//req = ne_request_create(object->sess, "DELETE", uri);
+	//ret = ne_simple_request(object->sess, req);
+	ret = ne_delete(object->sess, uri);
 	
-	if(NE_OK != ret || 2 != ne_get_status(req)->klass)
+	if(NE_OK != ret)
 	{
 		char *err_msg;
 		err_msg = get_error_msg(object->sess);
-		zend_throw_exception(tnc_dav_exception_ce, err_msg, 0 TSRMLS_CC);
+		// get error code
+		char *code = (char *)emalloc(3);
+		memcpy(code, err_msg, 3);
+		zend_throw_exception(tnc_dav_exception_ce, err_msg, atoi(code) TSRMLS_CC);
 		efree(err_msg);
+		efree(code);
 	}
 	
 	RETURN_TRUE;
 }
 
 
-/**
- * TODO: does not work, always gives back an error
- */
 PHP_METHOD(TncWebdav, copy)
 {
 	char *source_uri, *dest_uri;
@@ -408,8 +494,12 @@ PHP_METHOD(TncWebdav, copy)
 	{
 		char *err_msg;
 		err_msg = get_error_msg(object->sess);
-		zend_throw_exception(tnc_dav_exception_ce, err_msg, 0 TSRMLS_CC);
+		// get error code
+		char *code = (char *)emalloc(3);
+		memcpy(code, err_msg, 3);
+		zend_throw_exception(tnc_dav_exception_ce, err_msg, atoi(code) TSRMLS_CC);
 		efree(err_msg);
+		efree(code);
 	}
 	
 	RETURN_TRUE;
@@ -443,8 +533,12 @@ PHP_METHOD(TncWebdav, move)
 	{
 		char *err_msg;
 		err_msg = get_error_msg(object->sess);
-		zend_throw_exception(tnc_dav_exception_ce, err_msg, 0 TSRMLS_CC);
+		// get error code
+		char *code = (char *)emalloc(3);
+		memcpy(code, err_msg, 3);
+		zend_throw_exception(tnc_dav_exception_ce, err_msg, atoi(code) TSRMLS_CC);
 		efree(err_msg);
+		efree(code);
 	}
 	
 	RETURN_TRUE;
@@ -467,17 +561,167 @@ PHP_METHOD(TncWebdav, mkcol)
 	
 	GET_DAV(getThis());
 	
-	full_uri = make_full_uri(object, uri, uri_len);
-	req = ne_request_create(object->sess, "MKCOL", full_uri);
-    ret = ne_simple_request(object->sess, req);
-	
-	if (ret != NE_OK || ne_get_status(req)->klass != 2) 
+	//full_uri = make_full_uri(object, uri, uri_len);
+	//req = ne_request_create(object->sess, "MKCOL", full_uri);
+    //ret = ne_simple_request(object->sess, req);
+	ret = ne_mkcol(object->sess, uri);
+
+	if (ret != NE_OK) 
 	{
 		char *err_msg;
 		err_msg = get_error_msg(object->sess);
-		zend_throw_exception(tnc_dav_exception_ce, err_msg, 0 TSRMLS_CC);
+		// get error code
+		char *code = (char *)emalloc(3);
+		memcpy(code, err_msg, 3);
+		zend_throw_exception(tnc_dav_exception_ce, err_msg, atoi(code) TSRMLS_CC);
 		efree(err_msg);
+		efree(code);
 	}
 	
 	RETURN_TRUE;
+}
+
+PHP_METHOD(TncWebdav, propfind)
+{
+	char *uri, *full_uri;
+	int uri_len;
+	
+	char *tmp_return;
+	
+	int ret;
+	
+	ne_request *req;
+	tnc_dav_t *object;
+	
+	if(FAILURE == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &uri, &uri_len))
+	{
+		return;
+	}
+	
+	GET_DAV(getThis());
+	
+	full_uri = make_full_uri(object, uri, uri_len);
+	req = ne_request_create(object->sess, "PROPFIND", uri);
+	RETVAL_EMPTY_STRING();
+	ne_add_response_body_reader(req, ne_accept_2xx, cb_dav_reader, return_value);
+	ret = ne_request_dispatch(req);
+	ne_request_destroy(req);
+	
+	int old_len = Z_STRLEN_P(return_value);
+	tmp_return = (char *)emalloc(old_len + 1);
+	memcpy(tmp_return, Z_STRVAL_P(return_value), old_len);
+	tmp_return[old_len] = '\0';
+	
+	Z_STRVAL_P(return_value) = erealloc(Z_STRVAL_P(return_value), old_len + 1);
+	memcpy(Z_STRVAL_P(return_value), tmp_return, old_len + 1);
+	
+ 	efree(tmp_return);
+
+	if(NE_OK != ret || 2 != ne_get_status(req)->klass)
+	{
+		char *err_msg;
+		err_msg = get_error_msg(object->sess);
+		// get error code
+		char *code = (char *)emalloc(3);
+		memcpy(code, err_msg, 3);
+		zend_throw_exception(tnc_dav_exception_ce, err_msg, atoi(code) TSRMLS_CC);
+		efree(err_msg);
+		efree(code);
+	}
+}
+
+PHP_METHOD(TncWebdav, options)
+{
+	char *uri;
+	int uri_len;
+	int ret;
+	tnc_dav_t *object;
+	
+	unsigned int capabilities;
+	
+	if(FAILURE == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &uri, &uri_len))
+	{
+		return;
+	}
+	
+	GET_DAV(getThis());
+	
+	ret = ne_options2(object->sess, uri, &capabilities);
+	
+	array_init(return_value);
+	add_index_bool(return_value, 0, capabilities & NE_CAP_DAV_CLASS1);
+	add_index_bool(return_value, 1, capabilities & NE_CAP_DAV_CLASS2);
+	add_index_bool(return_value, 2, capabilities & NE_CAP_DAV_CLASS3);
+	add_index_bool(return_value, 3, capabilities & NE_CAP_MODDAV_EXEC);
+	add_index_bool(return_value, 4, capabilities & NE_CAP_DAV_ACL);
+	add_index_bool(return_value, 5, capabilities & NE_CAP_VER_CONTROL);
+	add_index_bool(return_value, 6, capabilities & NE_CAP_CO_IN_PLACE);
+	add_index_bool(return_value, 7, capabilities & NE_CAP_VER_HISTORY);
+	add_index_bool(return_value, 8, capabilities & NE_CAP_WORKSPACE);
+	add_index_bool(return_value, 9, capabilities & NE_CAP_UPDATE);
+	add_index_bool(return_value, 10, capabilities & NE_CAP_LABEL);
+	add_index_bool(return_value, 11, capabilities & NE_CAP_WORK_RESOURCE);
+	add_index_bool(return_value, 12, capabilities & NE_CAP_MERGE);
+	add_index_bool(return_value, 13, capabilities & NE_CAP_BASELINE);
+	add_index_bool(return_value, 14, capabilities & NE_CAP_ACTIVITY);
+	add_index_bool(return_value, 15, capabilities & NE_CAP_VC_COLLECTION);
+	
+	if(NE_OK != ret)
+	{
+		char *err_msg;
+		err_msg = get_error_msg(object->sess);
+		// get error code
+		char *code = (char *)emalloc(3);
+		memcpy(code, err_msg, 3);
+		zend_throw_exception(tnc_dav_exception_ce, err_msg, atoi(code) TSRMLS_CC);
+		efree(err_msg);
+		efree(code);
+	}
+}
+
+PHP_METHOD(TncWebdav, getModTime)
+{
+	char *uri;
+	int uri_len;
+	
+	char *ret_modtime;
+	int ret;
+	tnc_dav_t *object;
+	
+	time_t modtime;
+	
+	if(FAILURE == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &uri, &uri_len))
+	{
+		return;
+	}
+	
+	GET_DAV(getThis());
+	
+	ret = ne_getmodtime(object->sess, uri, &modtime);
+
+	if(NE_OK != ret)
+	{
+		char *err_msg;
+		err_msg = get_error_msg(object->sess);
+		// get error code
+		char *code = (char *)emalloc(3);
+		memcpy(code, err_msg, 3);
+		zend_throw_exception(tnc_dav_exception_ce, err_msg, atoi(code) TSRMLS_CC);
+		efree(err_msg);
+		efree(code);
+	}
+	
+	// get rid of the stupid newline character
+	if(-1 != modtime)
+	{
+		int len = strlen(ctime(&modtime));
+		ret_modtime = (char *)emalloc(len - 1);
+		memcpy(ret_modtime, ctime(&modtime), len);
+		ret_modtime[len - 1] = '\0';
+	
+		RETURN_STRING(ret_modtime, 1);
+		efree(ret_modtime);
+	}
+	
+	RETURN_FALSE;
 }
