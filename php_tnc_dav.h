@@ -57,5 +57,6 @@ PHP_METHOD(TncWebdav, mkcol);
 PHP_METHOD(TncWebdav, propfind);
 PHP_METHOD(TncWebdav, options);
 PHP_METHOD(TncWebdav, getModTime);
+PHP_METHOD(TncWebdav, close);
 
 #endif

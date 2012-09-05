@@ -50,6 +50,7 @@ static function_entry tnc_dav_methods[] = {
 	PHP_ME(TncWebdav, propfind, NULL, ZEND_ACC_PUBLIC)
 	PHP_ME(TncWebdav, options, NULL, ZEND_ACC_PUBLIC)
 	PHP_ME(TncWebdav, getModTime, NULL, ZEND_ACC_PUBLIC)
+	PHP_ME(TncWebdav, close, NULL, ZEND_ACC_PUBLIC)
 	{NULL, NULL, NULL}
 };
 
@@ -296,6 +297,18 @@ PHP_METHOD(TncWebdav, __construct)
 		ne_set_server_auth(sess, cb_dav_auth, object);
 	}
 	
+}
+
+/**
+ * If explicitly called, we don't want to destroy the session, as it
+ * will try to destroy a non-existent resource in the destruct method
+ */
+PHP_METHOD(TncWebdav, close)
+{
+	tnc_dav_t *object;
+	GET_DAV(getThis());
+	
+	ne_close_connection(object->sess);	
 }
 
 PHP_METHOD(TncWebdav, getHost)
