@@ -29,6 +29,8 @@ typedef struct _tnc_dav {
 	char *pass;
 	int pass_len;
 	ne_session *sess;
+	char *status_buffer;
+	int status_code;
 } tnc_dav_t;
 
 #define GET_DAV(obj)  \
@@ -41,6 +43,7 @@ static int cb_dav_auth(void *userdata, const char *realm, int attempts, char *us
 static int cb_dav_reader(void *userdata, const char *buf, size_t len);
 static char *get_error_msg(ne_session *sess);
 static char *make_full_uri(tnc_dav_t *object, const char *path, int path_len);
+static void status_callback(void *userdata, ne_session_status status, const ne_session_status_info *info);
 
 PHP_MINIT_FUNCTION(tnc_dav);
 
@@ -58,5 +61,8 @@ PHP_METHOD(TncWebdav, propfind);
 PHP_METHOD(TncWebdav, options);
 PHP_METHOD(TncWebdav, getModTime);
 PHP_METHOD(TncWebdav, close);
+PHP_METHOD(TncWebdav, setReadTimeout);
+PHP_METHOD(TncWebdav, setConnectTimeout);
+PHP_METHOD(TncWebdav, getStatus);
 
 #endif

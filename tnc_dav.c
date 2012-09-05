@@ -51,6 +51,9 @@ static function_entry tnc_dav_methods[] = {
 	PHP_ME(TncWebdav, options, NULL, ZEND_ACC_PUBLIC)
 	PHP_ME(TncWebdav, getModTime, NULL, ZEND_ACC_PUBLIC)
 	PHP_ME(TncWebdav, close, NULL, ZEND_ACC_PUBLIC)
+	PHP_ME(TncWebdav, setReadTimeout, NULL, ZEND_ACC_PUBLIC)
+	PHP_ME(TncWebdav, setConnectTimeout, NULL, ZEND_ACC_PUBLIC)
+	PHP_ME(TncWebdav, getStatus, NULL, ZEND_ACC_PUBLIC)
 	{NULL, NULL, NULL}
 };
 
@@ -107,6 +110,12 @@ PHP_MINIT_FUNCTION(tnc_dav)
 	zend_declare_class_constant_long(tnc_dav_ce, "CAP_BASELINE", strlen("CAP_BASELINE"), 13 TSRMLS_CC);
 	zend_declare_class_constant_long(tnc_dav_ce, "CAP_ACTIVITY", strlen("CAP_ACTIVITY"), 14 TSRMLS_CC);
 	zend_declare_class_constant_long(tnc_dav_ce, "CAP_VC_COLLECTION", strlen("CAP_VC_COLLECTION"), 15 TSRMLS_CC);
+	
+	zend_declare_class_constant_long(tnc_dav_ce, "STATUS_CONNECTING", strlen("STATUS_CONNECTING"), 0 TSRMLS_CC);
+	zend_declare_class_constant_long(tnc_dav_ce, "STATUS_CONNECTED", strlen("STATUS_CONNECTED"), 1 TSRMLS_CC);
+	zend_declare_class_constant_long(tnc_dav_ce, "STATUS_DISCONNECTED", strlen("STATUS_DISCONNECTED"), 2 TSRMLS_CC);
+	zend_declare_class_constant_long(tnc_dav_ce, "STATUS_LOOKUP", strlen("STATUS_LOOKUP"), 3 TSRMLS_CC);
+	zend_declare_class_constant_long(tnc_dav_ce, "STATUS_UNKNOWN", strlen("STATUS_UNKNOWN"), 4 TSRMLS_CC);
 	
 	/* status codes - should we map these to some specific constants?
 		200 OK
@@ -231,6 +240,63 @@ static int cb_dav_reader(void *userdata, const char *buf, size_t len) {
     return 0;
 }
 
+static void status_callback(void *userdata, ne_session_status status,
+                      const ne_session_status_info *info)
+{
+	
+	tnc_dav_t *object = (tnc_dav_t *)userdata;
+    char scratch[512];
+	int len = 0;
+	
+    switch (status) {
+    case ne_status_lookup:
+		len = sprintf(scratch, "lookup(%s)", (char *)info->lu.hostname);
+		object->status_buffer = erealloc(object->status_buffer, len + 1);
+		memcpy(object->status_buffer, &scratch, len);
+		object->status_buffer[len] = '\0';
+		object->status_code = 3;
+        break;
+    case ne_status_connecting:
+		len = sprintf(scratch, "connecting(%s)", (char *)info->lu.hostname);
+		object->status_buffer = erealloc(object->status_buffer, len + 1);
+		memcpy(object->status_buffer, &scratch, len);
+		object->status_buffer[len] = '\0';
+		object->status_code = 0;
+        break;
+    case ne_status_sending:
+		break;
+    case ne_status_recving:
+		break;
+	/*	if(ne_status_sending) {
+			len = sprintf(scratch, "sending %d of %d", info->sr.progress, info->sr.total);
+		} else {
+			len = sprintf(scratch, "received %d of %d", info->sr.progress, info->sr.total);
+		}
+		object->status_buffer = erealloc(object->status_buffer, len + 1);
+		memcpy(object->status_buffer, &scratch, len);
+		object->status_buffer[len] = '\0';
+        break;*/
+    case ne_status_disconnected:
+		object->status_buffer = erealloc(object->status_buffer, 13);
+		memcpy(object->status_buffer, "disconnected", 12);
+		object->status_buffer[12] = '\0';
+		object->status_code = 2;
+		break;
+    case ne_status_connected:
+		len = sprintf(scratch, "connected(%s)", (char *)info->cd.hostname);
+		object->status_buffer = erealloc(object->status_buffer, len + 1);
+		memcpy(object->status_buffer, &scratch, len);
+		object->status_buffer[len] = '\0';
+		object->status_code = 1;
+        break;
+    default:
+		//object->status_buffer = erealloc(object->status_buffer, 5);
+		//memcpy(object->status_buffer, "test", 4);
+		//object->status_buffer[4] = '\0';
+        break;
+    }
+}
+
 PHP_METHOD(TncWebdav, __construct)
 {
 	char *host;
@@ -252,9 +318,11 @@ PHP_METHOD(TncWebdav, __construct)
 	tnc_dav_t *object;
 	
 	object = (tnc_dav_t*)zend_object_store_get_object(getThis() TSRMLS_CC);
-	
 	object->url = estrdup(host);
 	object->url_len = host_len;
+	
+	object->sess = sess;
+	
 	if (ne_uri_parse(host, &uri) != 0) {
 		zend_throw_exception(tnc_dav_exception_ce, "Invalid base URL", 0 TSRMLS_CC);
     }
@@ -272,6 +340,13 @@ PHP_METHOD(TncWebdav, __construct)
 		object->pass_len = pass_len;
 	}
 	
+	object->status_buffer = (char *)emalloc(2);
+	memcpy(object->status_buffer, "0", 1);
+	object->status_buffer[1] = '\0';
+	
+	// set status unknown
+	object->status_code = 4;
+	
 	// make connection then
 	if(NULL == uri.scheme) 
 	{
@@ -285,16 +360,19 @@ PHP_METHOD(TncWebdav, __construct)
 	{
 		zend_throw_exception(tnc_dav_exception_ce, "Unable to initialize socket libraries", 0 TSRMLS_CC);
 	}
-	if(NULL == (sess = ne_session_create(uri.scheme, uri.host, uri.port)))
+	if(NULL == (object->sess = ne_session_create(uri.scheme, uri.host, uri.port)))
 	{
 		zend_throw_exception(tnc_dav_exception_ce, "Unable to open a new DAV session", 0 TSRMLS_CC);
 	}
 	
-	ne_set_read_timeout(sess, (int) timeout);
-	object->sess = sess;
+	ne_set_notifier(object->sess, status_callback, object);
+	
+	ne_set_read_timeout(object->sess, (int) timeout);
+	
+	
 	if(NULL != user && NULL != pass)
 	{
-		ne_set_server_auth(sess, cb_dav_auth, object);
+		ne_set_server_auth(object->sess, cb_dav_auth, object);
 	}
 	
 }
@@ -739,4 +817,51 @@ PHP_METHOD(TncWebdav, getModTime)
 	}
 	
 	RETURN_FALSE;
+}
+
+PHP_METHOD(TncWebdav, setReadTimeout)
+{
+	long timeout;
+	
+	tnc_dav_t *object;
+	
+	if(FAILURE == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &timeout))
+	{
+		return;
+	}
+	
+	GET_DAV(getThis());
+	
+	ne_set_read_timeout(object->sess, (int)timeout);
+	
+	RETURN_TRUE;
+}
+
+PHP_METHOD(TncWebdav, setConnectTimeout)
+{
+	long timeout;
+	
+	tnc_dav_t *object;
+	
+	if(FAILURE == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &timeout))
+	{
+		return;
+	}
+	
+	GET_DAV(getThis());
+	
+	ne_set_connect_timeout(object->sess, (int)timeout);
+	
+	RETURN_TRUE;
+}
+
+PHP_METHOD(TncWebdav, getStatus)
+{
+	tnc_dav_t* object;
+	
+	GET_DAV(getThis());
+	
+	array_init(return_value);
+	add_assoc_long(return_value, "code", object->status_code);
+	add_assoc_string(return_value, "message", object->status_buffer, 1);
 }
