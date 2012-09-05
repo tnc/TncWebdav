@@ -309,6 +309,8 @@ PHP_METHOD(TncWebdav, close)
 	GET_DAV(getThis());
 	
 	ne_close_connection(object->sess);	
+	
+	RETURN_TRUE;
 }
 
 PHP_METHOD(TncWebdav, getHost)
