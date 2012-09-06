@@ -4,7 +4,7 @@ The TncWebdav extension is a webdav extension for PHP that uses the [neon librar
 
 ##About##
 
-This extension was written by Joseph Lambert "joseph@thenetcircle.com" at [The NetCircle](http://www.thenetcircle.com "The NetCircle Home").
+This extension was written by Joseph Lambert joseph at thenetcircle.com [The NetCircle](http://www.thenetcircle.com "The NetCircle Home").
 
 This extension initially started out as few bug fixes for [webdav-1.2 from pureftpd](http://www.pureftpd.org/project/php-webdav "pureftpd"), but turned into more or less a complete rewrite. Instead of returning a resource and passing the resource to different functions, it is rewritten to use a more OO approach, as well as throwing exceptions in most cases instead of returning only false. It also adds support for PROPFIND and OPTIONS methods, as well as adding a getModTime function to return the last modified time of a file. 
 
