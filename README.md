@@ -14,25 +14,25 @@ However, with all open source software there may be some bugs here and there, so
 
 First, you *must install the neon library on the target machine*. See the neon website for information on downloading and installing it. After it is installed, follow these steps:
 
-<pre><code>
+```php
   phpize
   ./configure --with-tnc-dav
   make
   make test
   sudo make install
-</code></pre>
+```
 
 If the installed neon libraries are not in /usr/local or in /usr, you will need to specify the path to the root directory of the library in the configure step. An example:
 
-<pre><code>
-  ./configure --with-tnc\_dav=/usr/local/neon-0.29.6
-</code></pre>
+```php
+  ./configure --with-tnc_dav=/usr/local/neon-0.29.6
+```
 
 Next, add the extension to your php.ini file:
 
-<pre><code>
-  extension=tnc\_dav.so
-</code></pre>
+```php
+  extension=tnc_dav.so
+```
 
 ##Note for Windows users##
 
@@ -56,7 +56,7 @@ Also to be added is handling for HTTPS as well as "other" functions for a more c
 
 The following is a usage example:
 
-<pre><code>
+```php
     
     $connection = new TncWebdav("http://localhost:8088", "username", "password");
     
@@ -95,7 +95,7 @@ The following is a usage example:
       echo $e->getCode(); // 404
     }
 
-</code></pre>
+```
 
 All functions will throw a TncWebdavException if they don't have a 2xx HTTP status code for the operation. The exception message will be the text returned from the DAV server and the error code will be the HTTP status code.
 
@@ -126,13 +126,13 @@ Options will return an array of booleans that correspond to the following class 
 
 For example:
 
-<pre><code>
+```php
   
   $options = $c->options('/test_image.jpg');
   
   echo $options[TncWebdav::CAP_DAV_CLASS1]; // bool(true) if it implements RFC 2518
 
-</code></pre>
+```
 
 These map to macros in src/ne\_basic.h in the neon library. If it returns true, the WebDAV resource has this capability.
 
