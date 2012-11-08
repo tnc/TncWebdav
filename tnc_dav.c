@@ -297,6 +297,11 @@ static void status_callback(void *userdata, ne_session_status status,
     }
 }
 
+int tnc_dav_accept_2xx(void *userdata, ne_request *req, const ne_status *st)
+{
+	return (st->klass == 2);
+}
+
 PHP_METHOD(TncWebdav, __construct)
 {
 	char *host;
@@ -448,7 +453,7 @@ PHP_METHOD(TncWebdav, get)
 	//full_uri = make_full_uri(object, uri, uri_len);
 	req = ne_request_create(object->sess, "GET", uri);
 	RETVAL_EMPTY_STRING();
-	ne_add_response_body_reader(req, ne_accept_2xx, cb_dav_reader, return_value);
+	ne_add_response_body_reader(req, tnc_dav_accept_2xx, cb_dav_reader, return_value);
 	ret = ne_request_dispatch(req);
 	ne_request_destroy(req);
 	
@@ -696,7 +701,7 @@ PHP_METHOD(TncWebdav, propfind)
 	full_uri = make_full_uri(object, uri, uri_len);
 	req = ne_request_create(object->sess, "PROPFIND", uri);
 	RETVAL_EMPTY_STRING();
-	ne_add_response_body_reader(req, ne_accept_2xx, cb_dav_reader, return_value);
+	ne_add_response_body_reader(req, tnc_dav_accept_2xx, cb_dav_reader, return_value);
 	ret = ne_request_dispatch(req);
 	ne_request_destroy(req);
 	

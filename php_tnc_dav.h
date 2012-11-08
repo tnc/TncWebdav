@@ -44,6 +44,7 @@ static int cb_dav_reader(void *userdata, const char *buf, size_t len);
 static char *get_error_msg(ne_session *sess);
 static char *make_full_uri(tnc_dav_t *object, const char *path, int path_len);
 static void status_callback(void *userdata, ne_session_status status, const ne_session_status_info *info);
+int tnc_dav_accept_2xx(void *userdata, ne_request *req, const ne_status *st);
 
 PHP_MINIT_FUNCTION(tnc_dav);
 
