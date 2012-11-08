@@ -122,6 +122,7 @@ PHP_MINIT_FUNCTION(tnc_dav)
 		201 Created
 		204 No Content
 		403 Forbidden
+		404 Not Found
 		405 Method Not Allowed
 		409 Conflict
 		412 Precondition Failed
