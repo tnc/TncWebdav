@@ -16,16 +16,16 @@ First, you *must install the neon library on the target machine*. See the neon w
 
 ```php
   phpize
-  ./configure --with-tnc-dav
+  ./configure --with-tnc_dav
   make
   make test
   sudo make install
 ```
 
-If the installed neon libraries are not in /usr/local or in /usr, you will need to specify the path to the root directory of the library in the configure step. An example:
+If the installed neon libraries cannot be found by shtool, you will need to specify the path to the neon-config binary. An example:
 
 ```php
-  ./configure --with-tnc_dav=/usr/local/neon-0.29.6
+  ./configure --with-tnc_dav --with-neon-config=/usr/local/neon/bin/neon-config
 ```
 
 Next, add the extension to your php.ini file:
