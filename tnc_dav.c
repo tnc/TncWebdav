@@ -36,7 +36,7 @@ zend_class_entry *tnc_dav_exception_ce;
 zend_object_handlers tnc_dav_default_handlers;
 
 /* TODO: need static keyword? */
-static function_entry tnc_dav_methods[] = {
+static zend_function_entry tnc_dav_methods[] = {
 	PHP_ME(TncWebdav, __construct, NULL, ZEND_ACC_PUBLIC)
     PHP_ME(TncWebdav, getHost, NULL, ZEND_ACC_PUBLIC)
 	PHP_ME(TncWebdav, getUser, NULL, ZEND_ACC_PUBLIC)
@@ -147,17 +147,19 @@ static zend_object_value create_new_tnc_dav(zend_class_entry *class_type TSRMLS_
   memset(intern, 0, sizeof(tnc_dav_t));                          
                                                                  
   zend_object_std_init(&intern->std, class_type TSRMLS_CC);      
-  zend_hash_copy(intern->std.properties,                         
+  /*zend_hash_copy(intern->std.properties,                         
      &class_type->default_properties,                            
      (copy_ctor_func_t) zval_add_ref,                            
      (void *) &tmp,                                              
-     sizeof(zval *));                                            
+     sizeof(zval *));*/
+
+  init_properties(intern);                                            
                                                                  
   retval.handle = zend_objects_store_put(intern,                 
      (zend_objects_store_dtor_t) zend_objects_destroy_object,    
      php_tnc_dav_t_free, NULL TSRMLS_CC);                    
-  retval.handlers = &tnc_dav_default_handlers;               
-                                                                 
+  retval.handlers = &tnc_dav_default_handlers;       
+
   return retval;
 }
 
