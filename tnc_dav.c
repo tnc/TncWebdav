@@ -23,6 +23,7 @@
 #include <ne_auth.h>
 #include <ne_basic.h>
 #include <ne_207.h>
+#include <ne_uri.h>
 #include <zend_exceptions.h>
 #include <string.h>
 #include <stdlib.h>
@@ -35,7 +36,6 @@ zend_class_entry *tnc_dav_exception_ce;
 
 zend_object_handlers tnc_dav_default_handlers;
 
-/* TODO: need static keyword? */
 static zend_function_entry tnc_dav_methods[] = {
 	PHP_ME(TncWebdav, __construct, NULL, ZEND_ACC_PUBLIC)
     PHP_ME(TncWebdav, getHost, NULL, ZEND_ACC_PUBLIC)

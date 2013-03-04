@@ -35,7 +35,17 @@ typedef struct _tnc_dav {
 
 #define GET_DAV(obj)  \
   object = (tnc_dav_t*)zend_object_store_get_object((obj) TSRMLS_CC);
-  
+
+#if ZEND_MODULE_API_NO >= 20100525
+#define init_properties(intern) object_properties_init(&intern->std, class_type)
+#else
+#define init_properties(intern) {                                      \
+	zval *tmp;                                                         \
+	zend_hash_copy(intern->std.properties,                             \
+    &class_type->default_properties, (copy_ctor_func_t) zval_add_ref,  \
+    (void *) &tmp, sizeof(zval *));                                    \
+}
+#endif
 
 static zend_object_value create_new_tnc_dav(zend_class_entry *class_type TSRMLS_DC);
 void php_tnc_dav_t_free(void *object TSRMLS_DC);
