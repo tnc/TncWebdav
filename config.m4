@@ -8,7 +8,7 @@ dnl without editing.
 dnl If your extension references something external, use with:
 
 PHP_ARG_WITH(tnc_dav, for dav support,
-[  --with-tnc-dav             Include TNC dav support])
+[  --with-tnc_dav             Include TNC dav support])
 
 PHP_ARG_WITH(neon_config, path to libneon install,
 [  --with-neon-config=PATH       Path to neon-config executable], no, no)
@@ -36,7 +36,7 @@ if test "$PHP_TNC_DAV" != "no"; then
     
     PHP_SUBST(TNC_DAV_SHARED_LIBADD)
     PHP_NEW_EXTENSION(tnc_dav, tnc_dav.c, $ext_shared)  
-    
+
   else
     AC_MSG_ERROR([Could not find neon-config])
   fi
