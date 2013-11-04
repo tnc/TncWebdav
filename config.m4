@@ -30,11 +30,13 @@ if test "$PHP_TNC_DAV" != "no"; then
     DAV_LIBS=$($NEON_CONFIG --libs)
     DAV_INCS=$($NEON_CONFIG --cflags)
 
-    PHP_EVAL_LIBLINE($DAV_LIBS, DAV_SHARED_LIBADD)
-    PHP_EVAL_INCLINE($DAV_INCS)  
 
-    PHP_SUBST(DAV_SHARED_LIBADD)
-    PHP_NEW_EXTENSION(tnc_dav, tnc_dav.c, $ext_shared)
+    PHP_EVAL_LIBLINE($DAV_LIBS, TNC_DAV_SHARED_LIBADD)
+    PHP_EVAL_INCLINE($DAV_INCS)
+    
+    PHP_SUBST(TNC_DAV_SHARED_LIBADD)
+    PHP_NEW_EXTENSION(tnc_dav, tnc_dav.c, $ext_shared)  
+    
   else
     AC_MSG_ERROR([Could not find neon-config])
   fi

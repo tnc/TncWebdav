@@ -20,6 +20,19 @@
 #define PHP_TNC_DAV_EXTNAME "tnc_dav"
 #define PHP_TNC_DAV_VERSION "0.1.0"
 
+extern zend_module_entry dav_module_entry;
+#define phpext_dav_ptr &dav_module_entry
+
+#ifdef PHP_WIN32
+#define PHP_TNC_DAV_API __declspec(dllexport)
+#else
+#define PHP_TNC_DAV_API
+#endif
+
+#ifdef ZTS
+#include "TSRM.h"
+#endif
+
 typedef struct _tnc_dav {
 	zend_object std;
 	char *url;
@@ -76,4 +89,4 @@ PHP_METHOD(TncWebdav, setReadTimeout);
 PHP_METHOD(TncWebdav, setConnectTimeout);
 PHP_METHOD(TncWebdav, getStatus);
 
-#endif
+#endif /* PHP_TNC_DAV_H */
