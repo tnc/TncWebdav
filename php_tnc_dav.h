@@ -18,7 +18,7 @@
 #define PHP_TNC_DAV_H
 
 #define PHP_TNC_DAV_EXTNAME "tnc_dav"
-#define PHP_TNC_DAV_VERSION "0.1.0"
+#define PHP_TNC_DAV_VERSION "0.1.4"
 
 extern zend_module_entry dav_module_entry;
 #define phpext_dav_ptr &dav_module_entry
