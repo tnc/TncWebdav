@@ -99,6 +99,14 @@ The following is a usage example:
 
 All functions will throw a TncWebdavException if they don't have a 2xx HTTP status code for the operation. The exception message will be the text returned from the DAV server and the error code will be the HTTP status code.
 
+##Testing##
+
+You can test against a Webdav server after running `configure` by setting two environment variables to set a webdav host and port when you run `make test`:
+
+```
+  WEBDAVHOST=localhost WEBDAVPORT=8088 make test
+```
+ 
 ###PROPFIND###
 
 The propfind method will return an XML-formatted string of properties for a file. However, it seems the SimpleXML and XMLReader classes in PHP cannot properly parse it. It is formatted according to the [WebDAV RFC](http://www.webdav.org/specs/rfc2518.html#METHOD_PROPFIND "PROPFIND").
